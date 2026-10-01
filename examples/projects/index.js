@@ -13,27 +13,35 @@ const headers = {
     'Content-Type': 'application/json',
 };
 
-async function listProjects() {
-    const res = await fetch(`${BASE_URL}/projects/${WEBAUTOMATE_ACCOUNT_ID}`, {
-        method: 'POST',
-        headers,
-    });
+async function request(path, options = {}) {
+    const res = await fetch(`${BASE_URL}${path}`, {headers, ...options});
+    const body = await res.json().catch(() => null);
 
-    if (!res.ok) throw new Error(`Failed to list projects: ${res.status}`);
+    if (!res.ok || !body?.success) {
+        throw new Error(`${options.method ?? 'GET'} ${path} failed (${res.status}): ${body?.error?.message ?? 'unknown error'}`);
+    }
 
-    const {data} = await res.json();
-    return data.projects;
+    return body.data;
+}
+
+async function listProjects({limit = 50} = {}) {
+    const projects = [];
+    let cursor;
+
+    do {
+        const data = await request(`/projects/${WEBAUTOMATE_ACCOUNT_ID}`, {
+            method: 'POST',
+            body: JSON.stringify(cursor ? {limit, cursor} : {limit}),
+        });
+        projects.push(...data.projects);
+        cursor = data.pagination.nextCursor;
+    } while (cursor);
+
+    return projects;
 }
 
 async function deleteProject(projectId) {
-    const res = await fetch(`${BASE_URL}/project-delete/${WEBAUTOMATE_ACCOUNT_ID}/${projectId}`, {
-        method: 'DELETE',
-        headers,
-    });
-
-    if (!res.ok) throw new Error(`Failed to delete project ${projectId}: ${res.status}`);
-
-    return res.json();
+    return request(`/project-delete/${WEBAUTOMATE_ACCOUNT_ID}/${projectId}`, {method: 'DELETE'});
 }
 
 // List all projects
@@ -41,12 +49,18 @@ const projects = await listProjects();
 console.log(`Found ${projects.length} project(s):\n`);
 
 for (const project of projects) {
-    console.log(`  - ${project.name} (${project.id})`);
+    const {configData, latestBuild} = project;
+
+    console.log(`  - ${configData?.projectName ?? '(unnamed)'} (${project.id})`);
+    console.log(`    Solution: ${configData?.solution?.key ?? 'n/a'}`);
     console.log(`    State: ${project.state}`);
     console.log(`    Created: ${new Date(project.created).toLocaleString()}`);
+    if (latestBuild) {
+        console.log(`    Latest build: #${latestBuild.index} (${latestBuild.state})`);
+    }
     console.log();
 }
 
-// Uncomment to delete a specific project:
+// Uncomment to delete a specific project (requires the projects.delete scope):
 // const result = await deleteProject('your-project-id');
 // console.log('Deleted:', result);

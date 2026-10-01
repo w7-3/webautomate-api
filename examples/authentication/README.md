@@ -1,6 +1,6 @@
 # Authentication
 
-Verifies your API token is valid by calling the account endpoint.
+Checks that your API token is valid by calling the account endpoint.
 
 ## Run
 
@@ -12,9 +12,10 @@ npm start
 
 ## What it does
 
-- Sends a `GET /developer/v1/account/:accountId` request with your Bearer token
-- Prints your account data on success, or exits with an error message if the token is invalid/expired
+- Sends `GET /developer/v1/account/:accountId` with your Bearer token
+- Prints your account data on success
+- On failure, prints the API error code (for example `API.INVALID_OR_EXPIRED_TOKEN`, `API.TOKEN_DOES_NOT_MATCH_ACCOUNT`, or `API.INSUFFICIENT_SCOPE`)
 
 ## Get a token
 
-Go to **Settings → API Tokens** in your Webautomate dashboard and create a token with at least the `account.read` scope.
+Go to **My Account → Developers** in your Webautomate dashboard, click **Generate API token**, and select at least the `account.read` scope. Copy the token right away, because it is shown only once. The account ID in your `.env` must be the account the token belongs to.

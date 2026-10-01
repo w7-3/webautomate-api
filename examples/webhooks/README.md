@@ -1,6 +1,6 @@
 # Webhooks
 
-A minimal webhook receiver that listens for build events from Webautomate.
+A minimal webhook receiver for Webautomate build, project, and billing events. It verifies signatures and drops duplicate deliveries.
 
 ## Run
 
@@ -16,22 +16,29 @@ Then expose it publicly so Webautomate can reach it:
 npx ngrok http 3000
 ```
 
-Register the resulting URL (`https://<id>.ngrok.io/webhook`) in your Webautomate notification settings.
+Register the resulting URL (`https://<id>.ngrok.io/webhook`) under **My Account → Settings → Notifications** (Project Notification Defaults) or in a project's notification settings. Set the same **Signing Secret** there as `WEBHOOK_SIGNING_SECRET` in `.env`, then click **Send Test Webhook** to receive a `notification.test` event.
 
 ## What it does
 
 - Starts an HTTP server on `POST /webhook`
-- Optionally validates a shared secret via the `x-webautomate-secret` header
-- Handles `build.completed` and `build.failed` events; logs unknown event types
+- When `WEBHOOK_SIGNING_SECRET` is set, verifies `X-WebAutomate-Signature-V2` (`t=<sentAt>,sha256=<hex HMAC-SHA256 of "<sentAt>." + raw body>`) against the raw request body, and rejects timestamps more than 5 minutes old
+- Deduplicates on `eventId`, because delivery is at least once and retries keep the same `eventId`
+- Replies `200` right away, since Webautomate expects a 2xx within 10 seconds
+- Handles `build.completed`, `build.failed`, `build.mixed`, `build.cancelled`, and `notification.test`, and logs every other event type
 
-## Event payload shape
+## Envelope
 
 ```json
 {
-  "type": "build.completed",
-  "buildId": "build_abc123",
-  "projectId": "project_xyz",
-  "state": "completed",
-  "results": [...]
+  "accountId": "acc_123456",
+  "eventId": "notification_event_abc",
+  "eventType": "build.completed",
+  "payload": {},
+  "schemaVersion": 1,
+  "sentAt": 1790674567000
 }
 ```
+
+For `build.*` events, `payload` contains `projectConfig` (credentials masked as `[REDACTED]`), `requestData` (the build record: `projectId`, `buildId`, `state`, `start`, `end`, ...), `buildEvents`, and `buildResults`. To read the full paginated results, pass `requestData.buildId` to the [automations](../automations) example as `WEBAUTOMATE_BUILD_ID`.
+
+Other events: `build.retryExhausted`, `build.blocked`, `build.dequeued`, `project.invalid`, `project.paused`, and `billing.*`.

@@ -1,6 +1,6 @@
 # Automations
 
-Triggers an automation run and polls until it completes.
+Queues a build for a project, or reads the results of a finished build.
 
 ## Run
 
@@ -12,12 +12,24 @@ npm start
 
 ## What it does
 
-1. Triggers a build via `POST /developer/v1/project-build/:accountId/:projectId`
-2. Polls `GET /developer/v1/project-build-result/:accountId/:projectId/:buildId` every 5 seconds
-3. Exits when the build state is `completed`, `failed`, or `cancelled`
-4. Prints the duration and a preview of the first result
+**Without `WEBAUTOMATE_BUILD_ID`**, it queues a build:
+
+- Calls `POST /developer/v1/project-build/:accountId/:projectId`
+- Checks `success` in the response. If the project cannot be queued (not active, already queued or running, invalid configuration, or not enough Usage Credits), the API still returns HTTP 200, with `"success": false` and the reason in `error.message`
+- The response does not include a build ID. The outcome arrives as a `build.completed`, `build.failed`, `build.mixed`, or `build.cancelled` webhook. Run the [webhooks](../webhooks) example to receive it.
+
+**With `WEBAUTOMATE_BUILD_ID`** (taken from the webhook's `payload.requestData.buildId`), it reads results:
+
+- Calls `GET /developer/v1/project-build-result/:accountId/:projectId/:buildId?limit=25` and follows `data.pagination.nextCursor`
+- Prints the build's state and duration, how many results it has, and the first result
+
+Builds queued through the API are charged like manual runs and appear with the vendor `manager`.
+
+## Build states
+
+`queue`, `running`, `success`, `failure`, `mixed`, `cancel`, `timeout`, `terminated`
 
 ## Required scopes
 
-- `projects.run` — to trigger a build
-- `results.read` — to fetch the build result
+- `projects.run`: queue a build
+- `results.read`: read build results
